@@ -303,10 +303,13 @@ function importBackup(e){
   reader.onload=function(ev){
     try{
       var data=JSON.parse(ev.target.result),notifs=data.notifications||[],cnt=0;
+      var subMap={};
+      (data.subscriptions||[]).forEach(function(s){subMap[s.id]=s.topic;});
       notifs=notifs.filter(function(n){
-        if(n.topic)return n.topic===TOPIC;
+        var t=subMap[n.subscriptionId];
+        if(t)return t===TOPIC;
         if(SUBID)return String(n.subscriptionId)===String(SUBID);
-        return true;
+        return false;
       });
       notifs.sort(function(a,b){return(a.timestamp||0)-(b.timestamp||0);});
       for(var i=0;i<notifs.length;i++){
