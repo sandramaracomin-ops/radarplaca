@@ -4,12 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RadarPlaca</title>
-<link rel="manifest" href="manifest-manager.json">
-<meta name="theme-color" content="#0a0e17">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icons/manager-192.png">
 <style>@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Barlow:wght@400;500;600;700;800&display=swap');
 :root{--bg:#0d0f14;--bg2:#12151c;--card:#181c26;--border:#1f2535;--border2:#2a3045;--amber:#f59e0b;--red:#ef4444;--green:#22c55e;--blue:#3b82f6;--text:#e2e8f0;--sub:#94a3b8;--dim:#475569;--mono:'JetBrains Mono',monospace;--sans:'Barlow',sans-serif}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}
@@ -271,6 +265,50 @@ var fil = "all", sel = null;
 var apr = {};
 var monitorMap = {};
 var SEEN = {};
+
+var IDB_STORE="photos";
+function idbOpen(){
+  return new Promise(function(resolve,reject){
+    if(!window.indexedDB){reject();return;}
+    var req=indexedDB.open("rp_photos_db",1);
+    req.onupgradeneeded=function(){req.result.createObjectStore(IDB_STORE,{keyPath:"url"});};
+    req.onsuccess=function(){resolve(req.result);};
+    req.onerror=function(){reject(req.error);};
+  });
+}
+function idbGet(url){
+  return idbOpen().then(function(db){
+    return new Promise(function(resolve){
+      var tx=db.transaction(IDB_STORE,"readonly"),r=tx.objectStore(IDB_STORE).get(url);
+      r.onsuccess=function(){resolve(r.result?r.result.data:null);};
+      r.onerror=function(){resolve(null);};
+    });
+  }).catch(function(){return null;});
+}
+function idbSet(url,data){
+  idbOpen().then(function(db){
+    db.transaction(IDB_STORE,"readwrite").objectStore(IDB_STORE).put({url:url,data:data});
+  }).catch(function(){});
+}
+function cachePhoto(url){
+  if(!url)return;
+  var img=new Image();
+  img.crossOrigin="anonymous";
+  img.onload=function(){
+    try{
+      var c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight;
+      c.getContext("2d").drawImage(img,0,0);
+      idbSet(url,c.toDataURL("image/jpeg",0.85));
+    }catch(e){}
+  };
+  img.src=url;
+}
+function loadImgCached(imgEl,url){
+  idbGet(url).then(function(cached){
+    if(cached){imgEl.src=cached;}
+    else{imgEl.src=url;imgEl.addEventListener("load",function(){cachePhoto(url);},{once:true});}
+  });
+}
 
 // ── INIT ──
 function init(){
@@ -593,7 +631,7 @@ function renderTable(){
     var tdT=document.createElement("td");tdT.innerHTML=tag;
     var tdC=document.createElement("td");tdC.textContent=count;tdC.style.cssText="font-family:var(--mono);font-size:14px;color:var(--sub);text-align:center";
     var tdPh=document.createElement("td");
-    if(li){var img=document.createElement("img");img.src=li;img.style.cssText="width:52px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer";img.loading="lazy";img.onerror=function(){var d=document.createElement("div");d.textContent="foto expirada";d.style.cssText="font-size:9px;color:var(--dim);font-style:italic";this.replaceWith(d);};img.addEventListener("click",function(ev){ev.stopPropagation();openLb(li);});tdPh.appendChild(img);}else{tdPh.textContent="-";tdPh.style.color="var(--dim)";}
+    if(li){var img=document.createElement("img");img.style.cssText="width:52px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer";img.loading="lazy";img.onerror=function(){var d=document.createElement("div");d.textContent="foto expirada";d.style.cssText="font-size:9px;color:var(--dim);font-style:italic";this.replaceWith(d);};img.addEventListener("click",function(ev){ev.stopPropagation();openLb(li);});tdPh.appendChild(img);loadImgCached(img,li);}else{tdPh.textContent="-";tdPh.style.color="var(--dim)";}
     var tdTm=document.createElement("td");tdTm.innerHTML="<div class='tdt'>"+tcs+"</div>";
     var tdF=document.createElement("td");tdF.textContent=d.firstSeen||"-";tdF.style.cssText="font-family:var(--mono);font-size:11px;color:var(--dim)";
     tr.appendChild(tdP);tr.appendChild(tdT);tr.appendChild(tdC);tr.appendChild(tdPh);tr.appendChild(tdTm);tr.appendChild(tdF);
@@ -630,7 +668,7 @@ function openDet(plate){
   });
   var ph=document.getElementById("dPhotos");ph.innerHTML="";
   var imgs=(d.images||[]).filter(Boolean);
-  if(imgs.length){imgs.forEach(function(u){var img=document.createElement("img");img.className="phthumb";img.src=u;img.loading="lazy";img.onerror=function(){var d=document.createElement("div");d.textContent="foto expirada";d.style.cssText="font-size:10px;color:var(--dim);font-style:italic;padding:8px";this.replaceWith(d);};img.addEventListener("click",function(){openLb(u);});ph.appendChild(img);});}
+  if(imgs.length){imgs.forEach(function(u){var img=document.createElement("img");img.className="phthumb";img.loading="lazy";img.onerror=function(){var d=document.createElement("div");d.textContent="foto expirada";d.style.cssText="font-size:10px;color:var(--dim);font-style:italic;padding:8px";this.replaceWith(d);};img.addEventListener("click",function(){openLb(u);});ph.appendChild(img);loadImgCached(img,u);});}
   else{var sp=document.createElement("span");sp.textContent="Sem fotos";sp.style.cssText="font-size:11px;color:var(--dim)";ph.appendChild(sp);}
 }
 function closeDet(){document.getElementById("detPanel").className="det";sel=null;}
@@ -673,13 +711,6 @@ document.getElementById("plateInput").addEventListener("keydown",function(e){if(
 document.getElementById("newTopic").addEventListener("keydown",function(e){if(e.key==="Enter")addCamera();});
 init();
 
-</script>
-<script>
-if("serviceWorker" in navigator){
-  window.addEventListener("load",function(){
-    navigator.serviceWorker.register("sw.js").catch(function(){});
-  });
-}
 </script>
 </body>
 </html>
