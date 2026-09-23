@@ -248,7 +248,7 @@ tbody tr.apr td:nth-child(2),tbody tr.apr td:nth-child(4){text-decoration:none}
   </div>
 </div>
 
-<div class="lb" id="lb" onclick="this.classList.remove('show')"><img id="lbImg" src=""></div>
+<div class="lb" id="lb" onclick="this.classList.remove('show')"><img id="lbImg" src=""><div id="lbMsg" style="display:none;color:#fff;font-family:var(--mono);font-style:italic"></div></div>
 
 <script>
 
@@ -675,7 +675,13 @@ function openDet(plate){
   else{var sp=document.createElement("span");sp.textContent="Sem fotos";sp.style.cssText="font-size:11px;color:var(--dim)";ph.appendChild(sp);}
 }
 function closeDet(){document.getElementById("detPanel").className="det";sel=null;}
-function openLb(url){document.getElementById("lbImg").src=url;document.getElementById("lb").classList.add("show");}
+function openLb(url){
+  var img=document.getElementById("lbImg"),msg=document.getElementById("lbMsg");
+  document.getElementById("lb").classList.add("show");
+  img.style.display="block";msg.style.display="none";
+  img.onerror=function(){img.style.display="none";msg.style.display="block";msg.textContent="Essa foto expirou e nao ha copia salva.";};
+  idbGet(url).then(function(cached){img.src=cached||url;});
+}
 
 // ── MODAL ADD CAMERA ──
 function openAddModal(){document.getElementById("addModal").classList.add("show");document.getElementById("newTopic").focus();}
